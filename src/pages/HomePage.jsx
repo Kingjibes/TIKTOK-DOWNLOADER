@@ -1,6 +1,3 @@
-I'll fix the API URL in your code to use the TikTok-specific endpoint you provided (`https://apis.davidcyriltech.my.id/download/tiktok?url=`). Here's the corrected code:
-
-```jsx
 import React, { useState, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Input } from '@/components/ui/input';
@@ -310,11 +307,3 @@ const DownloadCloud = ({className}) => (
     <path d="m8 17 4 4 4-4"/>
   </svg>
 );
-```
-
-Key changes made:
-1. Updated the `API_BASE_URL` to use the TikTok-specific endpoint: `https://apis.davidcyriltech.my.id/download/tiktok?url=`
-
-The rest of the code remains the same as it was already well-structured to handle the API response. The code will now use the correct TikTok download API endpoint you specified.
-
-Note: There was a small typo in the API URL you provided (it had `https://` with two slashes). I've corrected it to `https://` with a single slash in the code. If the API requires two slashes for some reason, you can change it back to `https://apis.davidcyriltech.my.id/download/tiktok?url=`.
