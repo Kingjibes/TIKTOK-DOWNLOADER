@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter }
 import { Download, Loader2, AlertTriangle, Film, CheckCircle, ExternalLink, Info, PlayCircle } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
 
-const API_BASE_URL = 'https://apis.davidcyriltech.my.id/download/tiktok?url=';
+const API_BASE_URL = 'https://api-aswin-sparky.koyeb.app/api/downloader/tiktok?url=';
 
 const HomePage = () => {
   const [tiktokUrl, setTiktokUrl] = useState('');
@@ -49,40 +49,50 @@ const HomePage = () => {
       const response = await fetch(`${API_BASE_URL}${encodeURIComponent(tiktokUrl)}`);
       
       if (!response.ok) {
-        throw new Error(`Server error: ${response.status}. Please try again later.`);
+        let errorMsg = `Server error: ${response.status}. Please try again later.`;
+        try {
+          const errorData = await response.json();
+          errorMsg = errorData.message || errorData.error || errorMsg;
+        } catch (jsonError) {
+          try {
+            const errorText = await response.text();
+            if (errorText && errorText.length < 200) errorMsg = errorText;
+          } catch (textError) {
+            // Stick with the server status error message
+          }
+        }
+        throw new Error(errorMsg);
       }
 
       const data = await response.json();
 
-      if (!data.success) {
-        throw new Error(data.message || "Failed to download video");
+      if (data.status === false) {
+          throw new Error(data.message || "Could not retrieve video.");
       }
 
-      if (data && data.result && data.result.video) {
-        const result = data.result;
-        const formattedData = {
-          video: result.video,
-          video_nosign: result.video, // Using the same video URL since no separate no-watermark version
-          video_hd: result.video, // Using the same video URL since no separate HD version
-          music: result.music,
-          images: result.author?.avatar ? [result.author.avatar] : [],
-          title: result.desc || '',
-          author_name: result.author?.nickname || '',
-          description: result.desc || '',
-          cover: result.author?.avatar,
-          thumbnail: result.author?.avatar,
-          url_original: tiktokUrl,
-          statistics: result.statistics
+      if (data && data.data && data.data.video) {
+        const transformedData = {
+          result: {
+            video_nosign: data.data.video,
+            video_hd: data.data.video,
+            video_watermark: data.data.video,
+            music: data.data.audio,
+            images: [data.data.thumbnail],
+            cover: data.data.thumbnail,
+            title: data.data.title,
+            author_name: data.data.author?.unique_id || '',
+            description: data.data.title,
+            url_original: tiktokUrl
+          }
         };
-
-        setVideoData(formattedData);
+        setVideoData(transformedData.result);
         toast({
           title: "Video Ready!",
           description: "Your TikTok video is ready for download.",
           action: <CheckCircle className="text-green-500" />,
         });
       } else {
-        throw new Error("No video URL found in the response");
+        throw new Error("Could not retrieve video. The API response was not in the expected format.");
       }
     } catch (err) {
       console.error("API Error:", err);
@@ -103,33 +113,33 @@ const HomePage = () => {
 
     const downloadLinks = [];
     
-    if (videoData.video) {
-      downloadLinks.push({ label: "Download Video", url: videoData.video, type: "video" });
+    if (videoData.video_nosign) {
+      downloadLinks.push({ label: "Download Video (No Watermark)", url: videoData.video_nosign, type: "video" });
     }
     
+    if (videoData.video_hd) {
+      downloadLinks.push({ label: "Download HD Video", url: videoData.video_hd, type: "video" });
+    }
+    
+    if (videoData.video_watermark) {
+      downloadLinks.push({ label: "Download Video (Watermark)", url: videoData.video_watermark, type: "video" });
+    }
+
     if (videoData.music) {
       downloadLinks.push({ label: "Download Music", url: videoData.music, type: "audio" });
     }
     
     if (videoData.images && videoData.images.length > 0) {
       videoData.images.forEach((imgUrl, index) => {
-        downloadLinks.push({ label: `Download Profile Image ${index + 1}`, url: imgUrl, type: "image" });
+        downloadLinks.push({ label: `Download Image ${index + 1}`, url: imgUrl, type: "image" });
       });
-    }
-
-    if (downloadLinks.length === 0) {
-      return (
-        <div className="text-center text-muted-foreground py-4">
-          No download options available for this video
-        </div>
-      );
     }
 
     return downloadLinks.map((link) => (
       <Button
         key={link.url}
         asChild
-        className="w-full bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white transition-all duration-300 ease-in-out transform hover:scale-105 mb-2"
+        className="w-full bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-600 hover:to-emerald-700 text-white transition-all duration-300 ease-in-out transform hover:scale-105"
       >
         <a href={link.url} target="_blank" rel="noopener noreferrer" download>
           <Download className="mr-2 h-5 w-5" /> {link.label}
@@ -140,7 +150,7 @@ const HomePage = () => {
   
   const getPreviewableVideoUrl = () => {
     if (!videoData) return null;
-    return videoData.video;
+    return videoData.video_hd || videoData.video_nosign || videoData.video_watermark;
   };
 
   return (
@@ -237,28 +247,14 @@ const HomePage = () => {
                   <CardContent className="p-0">
                     {videoData.cover && (
                       <div className="aspect-video rounded-md overflow-hidden mb-3 shadow-md">
-                        <img 
-                          src={videoData.cover} 
-                          alt={videoData.title || 'TikTok Video Preview'} 
-                          className="w-full h-full object-cover"
-                          onError={(e) => {
-                            e.target.src = 'https://placehold.co/600x400?text=Preview+Not+Available';
-                          }}
-                        />
+                        <img src={videoData.cover} alt={videoData.title || 'TikTok Video Preview'} className="w-full h-full object-cover" />
                       </div>
                     )}
                     {videoData.title && <p className="text-sm font-semibold text-foreground mb-1">{videoData.title}</p>}
                     {videoData.author_name && <p className="text-xs text-muted-foreground">By: @{videoData.author_name}</p>}
-                    {videoData.statistics && (
-                      <div className="flex gap-4 text-xs text-muted-foreground mt-1">
-                        <span>❤️ {videoData.statistics.likeCount?.toLocaleString() || 0}</span>
-                        <span>💬 {videoData.statistics.commentCount?.toLocaleString() || 0}</span>
-                        <span>↗️ {videoData.statistics.shareCount?.toLocaleString() || 0}</span>
-                        <span>▶️ {videoData.statistics.playCount?.toLocaleString() || 0}</span>
-                      </div>
-                    )}
+                    {videoData.description && <p className="text-xs text-muted-foreground mt-1 line-clamp-2">{videoData.description}</p>}
                      
-                     {getPreviewableVideoUrl() && (
+                     {getPreviewableVideoUrl() && videoData.cover && (
                         <Button
                           variant="outline"
                           className="w-full mt-4"
@@ -274,11 +270,13 @@ const HomePage = () => {
                   {renderDownloadOptions()}
                 </div>
                 
-                <Button variant="link" asChild className="text-sm text-muted-foreground hover:text-primary">
-                  <a href={videoData.url_original} target="_blank" rel="noopener noreferrer">
-                    View original on TikTok <ExternalLink className="ml-1 h-3 w-3" />
-                  </a>
-                </Button>
+                {videoData.url_original && (
+                   <Button variant="link" asChild className="text-sm text-muted-foreground hover:text-primary">
+                     <a href={videoData.url_original} target="_blank" rel="noopener noreferrer">
+                       View original on TikTok <ExternalLink className="ml-1 h-3 w-3" />
+                     </a>
+                   </Button>
+                )}
               </CardFooter>
             </motion.div>
           )}
